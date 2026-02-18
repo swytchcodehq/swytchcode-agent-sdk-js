@@ -114,19 +114,6 @@ This library **must not** and **does not**:
 
 It is a pipe, not a brain.
 
-## CI/CD
-
-This project uses GitLab CI/CD to automatically:
-1. Build the project when merging to `main`
-2. Create a GitLab release using the version from `package.json`
-3. Publish to npmjs.com
-
-### Required CI/CD Variables
-
-Configure these in GitLab project settings → CI/CD → Variables:
-
-- **`NPM_TOKEN`** - npm authentication token with publish permissions
-- **`GITLAB_TOKEN`** - GitLab project access token with `api` scope (for creating releases)
 
 ## For Cursor / IDE agents
 

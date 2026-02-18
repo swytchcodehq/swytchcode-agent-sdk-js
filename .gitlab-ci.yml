@@ -1,7 +1,6 @@
 stages:
   - build
   - release
-  - publish
 
 variables:
   NODE_VERSION: "18"
@@ -51,24 +50,6 @@ create_release:
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases"
       
       echo "Release v${VERSION} created successfully"
-  dependencies:
-    - build
-  only:
-    - main
-  when: on_success
-
-# Publish to npm
-publish_npm:
-  stage: publish
-  image: node:${NODE_VERSION}
-  before_script:
-    - |
-      # Configure npm authentication
-      echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
-  script:
-    - npm ci
-    - npm run build
-    - npm publish --access public
   dependencies:
     - build
   only:

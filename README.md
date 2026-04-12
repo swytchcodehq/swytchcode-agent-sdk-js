@@ -2,7 +2,12 @@
 
 Thin runtime wrapper around the Swytchcode CLI. Calls `swytchcode exec` for you so you can stay in TypeScript/JavaScript without shell boilerplate.
 
-**Requires:** The `swytchcode` binary must be installed and on your `PATH`.
+**Requires:** The `swytchcode` CLI must be installed. The binary is located automatically — no configuration needed in most environments. Resolution order:
+
+1. `SWYTCHCODE_BIN` env var — explicit override.
+2. `node_modules/.bin/swytchcode` — walked up from the working directory (covers local `npm install swytchcode`).
+3. `$PATH` lookup — the standard system resolution.
+4. Common install paths — `~/.local/bin`, `/usr/local/bin` (Unix) or `%LOCALAPPDATA%\Programs\swytchcode\bin` (Windows).
 
 By default, the runtime runs Swytchcode in **JSON mode**: the CLI is invoked with `--json` and stdout must be valid JSON; empty stdout or parse failure throws. For **raw** output, use `output: "raw"` (or `raw: true`). For **streaming** output, use the Swytchcode CLI directly; this library does not support stream mode.
 
@@ -69,6 +74,14 @@ Equivalent to: `swytchcode exec api.report.export --raw` with input on stdin.
 - **`debug`** – If `true`, log spawn args, cwd, exit status, and stdout/stderr lengths to stderr.
 
 This runtime invokes `swytchcode exec [canonical_id]` with the flags above. For full exec behavior (exit codes, output format, pipeline), see the [Swytchcode kernel documentation](https://gitlab.com/swytchcode/swytchcode-runtime).
+
+### Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `SWYTCHCODE_BIN` | Override the resolved binary path. Set this only when automatic resolution does not find the correct binary (e.g. non-standard install locations). |
+| `SWYTCHCODE_TOKEN` | Auth token passed to the CLI via the process environment. |
+| `SWYTCHCODE_RUNTIME_DEBUG` | Set to `1` or `true` to enable debug logging (same as `{ debug: true }`). |
 
 **Debug logs** are also enabled when `SWYTCHCODE_RUNTIME_DEBUG=1` or `SWYTCHCODE_RUNTIME_DEBUG=true` (no code change):
 

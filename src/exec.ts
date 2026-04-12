@@ -1,8 +1,48 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { resolve as resolvePath, join } from "node:path";
 import type { ExecArgs, ExecOptions, ExecResult } from "./types.js";
 import { SwytchcodeError } from "./errors.js";
 
 const LOG_PREFIX = "[swytchcode-runtime]";
+const IS_WINDOWS = process.platform === "win32";
+
+/**
+ * Resolve the swytchcode binary path using the following order:
+ * 1. SWYTCHCODE_BIN env var — explicit override.
+ * 2. node_modules/.bin/swytchcode — walk up from cwd (covers local npm installs).
+ * 3. PATH lookup — the default; spawnSync will handle ENOENT if not found.
+ * 4. Common install-path fallbacks for when PATH is not configured.
+ */
+function resolveSwytchcodeBin(startDir: string): string {
+  // 1. Explicit override
+  const explicit = process.env.SWYTCHCODE_BIN?.trim();
+  if (explicit) return explicit;
+
+  // 2. Walk node_modules/.bin upward from startDir
+  const binName = IS_WINDOWS ? "swytchcode.cmd" : "swytchcode";
+  let dir = startDir;
+  while (true) {
+    const candidate = join(dir, "node_modules", ".bin", binName);
+    if (existsSync(candidate)) return candidate;
+    const parent = resolvePath(dir, "..");
+    if (parent === dir) break; // reached filesystem root
+    dir = parent;
+  }
+
+  // 3 & 4. PATH lookup with common install-path fallbacks
+  const fallbacks = IS_WINDOWS
+    ? [join(process.env.LOCALAPPDATA ?? "", "Programs", "swytchcode", "bin", "swytchcode.exe")]
+    : [
+        join(process.env.HOME ?? "", ".local", "bin", "swytchcode"),
+        "/usr/local/bin/swytchcode",
+      ];
+  for (const candidate of fallbacks) {
+    if (candidate && existsSync(candidate)) return candidate;
+  }
+
+  return "swytchcode"; // fall through to PATH; spawnSync reports ENOENT if still missing
+}
 
 function isDebug(options: ExecOptions): boolean {
   return (
@@ -60,14 +100,16 @@ export function exec(
   if (options.allowRaw === true) args.push("--allow-raw");
   const cwd = options.cwd ?? process.cwd();
   const hasInput = input !== undefined && input !== null;
+  const bin = resolveSwytchcodeBin(cwd);
 
+  log(debug, "binary:", bin);
   log(debug, "spawn:", `swytchcode ${args.join(" ")}`);
   if (options.dryRun === true) log(debug, "dry-run:", "enabled");
   if (options.allowRaw === true) log(debug, "allow-raw:", "enabled");
   log(debug, "cwd:", cwd);
   log(debug, "stdin:", hasInput ? `JSON (${JSON.stringify(input).length} chars)` : "none");
 
-  const result = spawnSync("swytchcode", args, {
+  const result = spawnSync(bin, args, {
     cwd,
     env: { ...process.env, ...options.env },
     input: hasInput ? JSON.stringify(input) : undefined,
@@ -95,8 +137,12 @@ export function exec(
 
   if (result.error) {
     log(debug, "reject:", "spawn error");
+    const isNotFound = (result.error as NodeJS.ErrnoException).code === "ENOENT";
+    const hint = isNotFound
+      ? ` — install it with: npm install -g swytchcode (or set SWYTCHCODE_BIN=/path/to/binary)`
+      : "";
     return Promise.reject(
-      new SwytchcodeError("Failed to spawn swytchcode", result.error)
+      new SwytchcodeError(`Failed to spawn swytchcode${hint}`, result.error)
     );
   }
 

@@ -4,19 +4,14 @@ type JS = { type: string; properties: Record<string, any>; required: string[] };
 
 export function simplify(inputs: any): JS {
   if (Array.isArray(inputs)) {
-    const properties: Record<string,any> = {};
+    const allProps: Record<string,any> = {};
+    const requiredProps: Record<string,any> = {};
     const required: string[] = [];
-    
+
     for (const item of inputs) {
       if (!item || typeof item !== "object") continue;
       for (const [name, spec] of Object.entries<any>(item)) {
         if (!spec || typeof spec !== "object") continue;
-
-        // Only required fields are exposed to the LLM (criterion #2: do not
-        // surface optional fields). Skip anything not REQUIRED.
-        const req = spec.REQUIRED;
-        const isRequired = req === true || (typeof req === "string" && req.trim().toLowerCase() === "true");
-        if (!isRequired) continue;
 
         let t = String(spec.TYPE ?? "STRING").toLowerCase();
         if (t === "int") t = "integer";
@@ -26,13 +21,19 @@ export function simplify(inputs: any): JS {
         else if (t === "float" || t === "number") t = "number";
         else t = "string";
 
-        properties[name] = {
-            type: t,
-            ...(spec.DESC ? { description: spec.DESC } : {})
-        };
-        required.push(name);
+        const prop = { type: t, ...(spec.DESC ? { description: spec.DESC } : {}) };
+        allProps[name] = prop;
+
+        const req = spec.REQUIRED;
+        const isRequired = req === true || (typeof req === "string" && req.trim().toLowerCase() === "true");
+        if (isRequired) { requiredProps[name] = prop; required.push(name); }
       }
     }
+    // Prefer required-only fields (criterion #2: don't surface optional noise).
+    // But some tools (e.g. Stripe) mark EVERY field optional — a required-only
+    // schema would then be empty, and the model calls the tool with no args. So
+    // fall back to exposing all fields when nothing is marked required.
+    const properties = required.length ? requiredProps : allProps;
     return { type:"object", properties, required };
   }
   

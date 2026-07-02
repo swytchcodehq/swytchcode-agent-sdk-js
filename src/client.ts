@@ -3,6 +3,7 @@ import * as discover from "./discover.js";
 import * as manage from "./manage.js";
 import { simplify } from "./schema.js";
 import { Provider, Tool } from "./providers/base.js";
+import type { ExecOptions } from "./types.js";
 
 class Tools {
   constructor(private c: Swytchcode) {}
@@ -12,9 +13,10 @@ class Tools {
     return this.c.provider ? this.c.provider.formatTools(neutral) : neutral;
   }
 
-  execute(cid: string, args: Record<string,any>): Promise<any> {
+  execute(cid: string, args: Record<string,any>, options: ExecOptions = {}): Promise<any> {
     if (!("body" in args) && !("params" in args)) args = { body: args };
-    return exec(cid, args);
+    // Forward exec options (dryRun, raw, allowRaw, cwd, env) to the CLI.
+    return exec(cid, args, options);
   }
 
   private _tool(cid: string): Tool {

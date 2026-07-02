@@ -4,8 +4,7 @@ type JS = { type: string; properties: Record<string, any>; required: string[] };
 
 export function simplify(inputs: any): JS {
   if (Array.isArray(inputs)) {
-    const allProps: Record<string,any> = {};
-    const requiredProps: Record<string,any> = {};
+    const properties: Record<string,any> = {};
     const required: string[] = [];
 
     for (const item of inputs) {
@@ -21,19 +20,18 @@ export function simplify(inputs: any): JS {
         else if (t === "float" || t === "number") t = "number";
         else t = "string";
 
-        const prop = { type: t, ...(spec.DESC ? { description: spec.DESC } : {}) };
-        allProps[name] = prop;
+        properties[name] = { type: t, ...(spec.DESC ? { description: spec.DESC } : {}) };
 
         const req = spec.REQUIRED;
         const isRequired = req === true || (typeof req === "string" && req.trim().toLowerCase() === "true");
-        if (isRequired) { requiredProps[name] = prop; required.push(name); }
+        if (isRequired) required.push(name);
       }
     }
-    // Prefer required-only fields (criterion #2: don't surface optional noise).
-    // But some tools (e.g. Stripe) mark EVERY field optional — a required-only
-    // schema would then be empty, and the model calls the tool with no args. So
-    // fall back to exposing all fields when nothing is marked required.
-    const properties = required.length ? requiredProps : allProps;
+    // Composio-style rule: expose ALL fields to the model and list only the
+    // truly-required ones in `required`. A required-only approach hid optional
+    // fields — which left all-optional tools (e.g. Stripe) with an empty schema
+    // so the model called them with no arguments, and blinded the model to
+    // optional fields on tools that do have some required ones.
     return { type:"object", properties, required };
   }
   

@@ -5,6 +5,25 @@ import { simplify } from "./schema.js";
 import { Provider, Tool } from "./providers/base.js";
 import type { ExecOptions } from "./types.js";
 
+/**
+ * Recursively drop keys whose value is null/undefined or an empty string ("").
+ * With "expose all fields", agents often fill unused optional fields with "",
+ * which APIs like Stripe reject ("empty values are an attempt to unset").
+ * Only null/undefined/"" are dropped — 0, false, [], {} are preserved.
+ */
+function stripEmpty(v: any): any {
+  if (Array.isArray(v)) return v.map(stripEmpty);
+  if (v && typeof v === "object") {
+    const out: Record<string, any> = {};
+    for (const [k, val] of Object.entries(v)) {
+      if (val === null || val === undefined || val === "") continue;
+      out[k] = stripEmpty(val);
+    }
+    return out;
+  }
+  return v;
+}
+
 class Tools {
   // Maps a sanitized tool name (dots -> underscores) back to its canonical ID,
   // populated as tools are built. Used to reverse names in handleToolCalls
@@ -19,8 +38,13 @@ class Tools {
 
   execute(cid: string, args: Record<string,any>, options: ExecOptions = {}): Promise<any> {
     if (!("body" in args) && !("params" in args)) args = { body: args };
+    // Drop empty optional fields (null/undefined/"") from body & params so values
+    // an agent over-filled don't reach the API (e.g. Stripe rejects customer="").
+    const a: Record<string,any> = { ...args };
+    if (a.body && typeof a.body === "object") a.body = stripEmpty(a.body);
+    if (a.params && typeof a.params === "object") a.params = stripEmpty(a.params);
     // Forward exec options (dryRun, raw, allowRaw, cwd, env) to the CLI.
-    return exec(cid, args, options);
+    return exec(cid, a, options);
   }
 
   private _tool(cid: string): Tool {

@@ -143,3 +143,40 @@ export async function createAccount(input: { email: string }) {
 ```
 
 **Avoid:** subprocess boilerplate, HTTP calls, or config parsing. Use `exec(...)` and let the CLI handle execution and policy.
+
+## Agentic workflows (framework integrations)
+
+On top of `exec`, the runtime exposes a small agentic surface that turns Swytchcode tools
+into the native tool objects each agent framework expects. The Swytchcode part is the same
+two lines regardless of framework:
+
+```ts
+import { Swytchcode, AnthropicProvider } from "swytchcode-runtime";
+
+const swx = new Swytchcode(new AnthropicProvider());
+const tools = swx.tools.get({ toolkits: ["stripe"] }); // framework-native tools, required-fields-only
+```
+
+### Selecting tools — `swx.tools.get({ ... })`
+
+Pass exactly one selector; IDs resolve against your local Swytchcode state and remote search:
+
+- `{ toolkits: ["stripe"] }` — every enabled tool whose integration matches a toolkit.
+- `{ tools: ["charges.charge.create"] }` — explicit canonical IDs.
+- `{ search: "refund a charge" }` — natural-language discovery (via `swytchcode discover`).
+
+Each returned tool carries a **required-fields-only** input schema — optional fields are not
+surfaced to the model — and an `execute` callback that runs `swytchcode exec` for you.
+
+### Supported providers
+
+| Framework | Export | Result of `tools.get` |
+|-----------|--------|-----------------------|
+| Anthropic Claude | `AnthropicProvider` | array of `{ name, description, input_schema }` |
+| OpenAI Agents SDK | `OpenAIAgentsProvider` | array of `@openai/agents` tools |
+| Vercel AI SDK | `VercelProvider` | **object** keyed by tool name (pass to `tools:` in `ai`) |
+| LangGraph | `LangGraphProvider` | array of `@langchain/core` `DynamicStructuredTool` |
+| CrewAI | `CrewAIProvider` | array of duck-typed tool objects |
+
+The framework SDKs are optional peer dependencies — install only the one you use
+(`@openai/agents`, `ai`, `@langchain/core`, …). See `sdk-examples/` for end-to-end usage.

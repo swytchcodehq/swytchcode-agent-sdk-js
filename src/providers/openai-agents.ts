@@ -1,0 +1,19 @@
+import { Provider, Tool } from "./base.js";
+import { tool } from "@openai/agents";
+
+export class OpenAIAgentsProvider extends Provider {
+  formatTool(t: Tool) {
+    // strict: false — our simplified schemas expose all fields but mark only the
+    // truly-required ones. OpenAI's strict function mode requires every property
+    // to appear in `required` (plus additionalProperties:false), so a strict tool
+    // 400s server-side on a partial-required schema. Disabling strict mirrors the
+    // Python provider's strict_json_schema=False.
+    return tool({
+      name: t.name,
+      description: t.description,
+      parameters: t.inputSchema as any,
+      strict: false,
+      execute: async (a: any) => t.execute(a)
+    } as any);
+  }
+}

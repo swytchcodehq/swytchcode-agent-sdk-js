@@ -40,20 +40,20 @@ export function simplify(inputs: any): JS {
   }
 
   const properties = inputs.properties || {};
-  let required = inputs.required;
-  if (!Array.isArray(required)) {
-    required = Object.keys(properties);
-  }
+  const required: string[] = Array.isArray(inputs.required) ? inputs.required : [];
   const keep: Record<string, any> = {};
 
-  for (const name of required) {
+  // Expose ALL fields (same rule as the array branch above); use the original
+  // required list only for the `required` key so optional/nested fields stay
+  // optional instead of being dropped or forced required.
+  for (const name of Object.keys(properties)) {
     let spec = properties[name] || {};
     if (typeof spec === "object" && spec !== null && spec.type === "object" && spec.properties) {
         spec = simplify(spec);
     }
     keep[name] = spec;
   }
-  return { type: "object", properties: keep, required: Object.keys(keep) };
+  return { type: "object", properties: keep, required: required.filter((n) => n in keep) };
 }
 
 export function toZod(s: JS) {

@@ -180,6 +180,7 @@ export function exec(
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024, // 10MB
     windowsVerbatimArguments: inv.windowsVerbatimArguments,
+    timeout: options.timeoutMs, // undefined = no timeout (default)
   });
 
   const stdoutRaw = result.stdout ?? "";
@@ -202,6 +203,14 @@ export function exec(
 
   if (result.error) {
     log(debug, "reject:", "spawn error");
+    if ((result.error as NodeJS.ErrnoException).code === "ETIMEDOUT") {
+      return Promise.reject(
+        new SwytchcodeError(
+          `swytchcode exec timed out after ${String(options.timeoutMs)}ms`,
+          result.error
+        )
+      );
+    }
     const isNotFound = (result.error as NodeJS.ErrnoException).code === "ENOENT";
     const hint = isNotFound
       ? ` — install it with: npm install -g swytchcode (or set SWYTCHCODE_BIN=/path/to/binary)`

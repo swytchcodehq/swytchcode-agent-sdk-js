@@ -1,8 +1,14 @@
 import { runCli } from "./cli.js";
 
 export function search(intent: string, top = 5): any[] {
-  const res = runCli(["discover", intent, "--top", String(top)]) ?? {};
-  return res.capabilities ?? [];
+  try {
+    const res = runCli(["discover", intent, "--top", String(top)]) ?? {};
+    return res.capabilities ?? [];
+  } catch (e) {
+    // Degrade gracefully on CLI failure, matching info() below.
+    console.warn(`Warning: Failed to search for "${intent}" (${e}). Returning no results.`);
+    return [];
+  }
 }
 
 export function info(canonicalId: string): any {

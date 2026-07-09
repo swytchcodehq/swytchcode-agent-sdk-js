@@ -19,6 +19,12 @@ export interface ExecOptions {
   allowRaw?: boolean;
   /** If true, log spawn/capture details to process.stderr (for debugging). */
   debug?: boolean;
+  /**
+   * Optional max time (ms) for the underlying subprocess. Unset means no timeout
+   * (a real API call may legitimately be slow); set it to bound a hung CLI on the
+   * agent tool-call hot path.
+   */
+  timeoutMs?: number;
 }
 
 /** Result of `exec()` in JSON mode: parsed stdout. In raw mode the result is a string. */

@@ -1,4 +1,4 @@
-# swytchcode-runtime
+# @swytchcode/runtime
 
 Thin runtime wrapper around the Swytchcode CLI. Calls `swytchcode exec` for you so you can stay in TypeScript/JavaScript without shell boilerplate.
 
@@ -14,7 +14,7 @@ By default, the runtime runs Swytchcode in **JSON mode**: the CLI is invoked wit
 ## Install
 
 ```bash
-npm install swytchcode-runtime
+npm install @swytchcode/runtime
 ```
 
 ## Use
@@ -22,7 +22,7 @@ npm install swytchcode-runtime
 ### JSON mode (default)
 
 ```ts
-import { exec } from "swytchcode-runtime";
+import { exec } from "@swytchcode/runtime";
 
 const result = await exec("api.account.create", {
   body: { name: "my-cluster" },
@@ -55,7 +55,7 @@ await exec("api.cluster.get", {
 Get stdout as a string instead of parsing JSON:
 
 ```ts
-import { exec } from "swytchcode-runtime";
+import { exec } from "@swytchcode/runtime";
 
 const output = await exec("api.report.export", { id: "123" }, { raw: true });
 // output is the raw stdout string
@@ -73,7 +73,7 @@ Equivalent to: `swytchcode exec api.report.export --raw` with input on stdin.
 - **`allowRaw`** – If `true`, pass `--allow-raw` to the CLI; required for executing raw methods (kernel has this disabled by default).
 - **`debug`** – If `true`, log spawn args, cwd, exit status, and stdout/stderr lengths to stderr.
 
-This runtime invokes `swytchcode exec [canonical_id]` with the flags above. For full exec behavior (exit codes, output format, pipeline), see the [Swytchcode kernel documentation](https://gitlab.com/swytchcode/swytchcode-runtime).
+This runtime invokes `swytchcode exec [canonical_id]` with the flags above. For full exec behavior (exit codes, output format, pipeline), see the [Swytchcode kernel documentation](https://gitlab.com/swytchcode/@swytchcode/runtime).
 
 ### Environment variables
 
@@ -96,7 +96,7 @@ Or in code: `exec("shell.integration.list", undefined, { debug: true })`.
 Failures throw `SwytchcodeError` (spawn error, non-zero exit, signal, empty stdout in JSON mode, invalid JSON). Use the type guard when you need to narrow:
 
 ```ts
-import { exec, isSwytchcodeError } from "swytchcode-runtime";
+import { exec, isSwytchcodeError } from "@swytchcode/runtime";
 
 try {
   await exec("api.account.create", { email: "test@example.com" });
@@ -135,7 +135,7 @@ Generate code that uses this runtime instead of subprocess boilerplate.
 **Preferred:**
 
 ```ts
-import { exec } from "swytchcode-runtime";
+import { exec } from "@swytchcode/runtime";
 
 export async function createAccount(input: { email: string }) {
   return exec("api.account.create", input);
@@ -146,15 +146,48 @@ export async function createAccount(input: { email: string }) {
 
 ## Agentic workflows (framework integrations)
 
-On top of `exec`, the runtime exposes a small agentic surface that turns Swytchcode tools
-into the native tool objects each agent framework expects. The Swytchcode part is the same
-two lines regardless of framework:
+For full, production-ready examples across all major frameworks, check out the [Swytchcode Examples Repository](https://github.com/swytchcodehq/swytchcode-examples).
 
+On top of `exec`, the runtime exposes a small agentic surface that turns Swytchcode tools into the native tool objects each agent framework expects. 
+
+### Quickstart: Anthropic SDK
+
+Here is a clean example of building a simple agent using the Anthropic SDK. We use `dotenv` to load environment variables (like `ANTHROPIC_API_KEY`).
+
+**Installation:**
+```bash
+npm install @swytchcode/runtime @anthropic-ai/sdk dotenv
+```
+*(Note: You only need to install the SDK for the framework you are actually using. You **do not** need to install `@openai/agents`, `@langchain/core`, or `ai` if you are only using Anthropic. The `@swytchcode/runtime` isolates these dependencies via subpath exports.)*
+
+**Example:**
 ```ts
-import { Swytchcode, AnthropicProvider } from "swytchcode-runtime";
+import "dotenv/config";
+import Anthropic from "@anthropic-ai/sdk";
+import { Swytchcode } from "@swytchcode/runtime";
+import { AnthropicProvider } from "@swytchcode/runtime/providers/anthropic";
 
-const swx = new Swytchcode(new AnthropicProvider());
-const tools = swx.tools.get({ toolkits: ["stripe"] }); // framework-native tools, required-fields-only
+async function runAgent() {
+  const anthropic = new Anthropic();
+  
+  // 1. Initialize Swytchcode with the Anthropic provider
+  const swx = new Swytchcode(new AnthropicProvider());
+  
+  // 2. Fetch the tools you want your agent to use (e.g., Stripe tools)
+  const tools = await swx.tools.get({ toolkits: ["stripe"] });
+
+  // 3. Pass them to Claude
+  const response = await anthropic.messages.create({
+    model: "claude-3-5-sonnet-latest",
+    max_tokens: 1024,
+    tools: tools,
+    messages: [{ role: "user", content: "Refund charge ch_123 for $20." }],
+  });
+
+  console.log(response);
+}
+
+runAgent();
 ```
 
 ### Selecting tools — `swx.tools.get({ ... })`
@@ -172,11 +205,11 @@ surfaced to the model — and an `execute` callback that runs `swytchcode exec` 
 
 | Framework | Export | Result of `tools.get` |
 |-----------|--------|-----------------------|
-| Anthropic Claude | `AnthropicProvider` | array of `{ name, description, input_schema }` |
-| OpenAI Agents SDK | `OpenAIAgentsProvider` | array of `@openai/agents` tools |
-| Vercel AI SDK | `VercelProvider` | **object** keyed by tool name (pass to `tools:` in `ai`) |
-| LangGraph | `LangGraphProvider` | array of `@langchain/core` `DynamicStructuredTool` |
-| CrewAI | `CrewAIProvider` | array of duck-typed tool objects |
+| Anthropic Claude | `@swytchcode/runtime/providers/anthropic` | array of `{ name, description, input_schema }` |
+| OpenAI Agents SDK | `@swytchcode/runtime/providers/openai-agents` | array of `@openai/agents` tools |
+| Vercel AI SDK | `@swytchcode/runtime/providers/vercel` | **object** keyed by tool name (pass to `tools:` in `ai`) |
+| LangGraph | `@swytchcode/runtime/providers/langgraph` | array of `@langchain/core` `DynamicStructuredTool` |
+| CrewAI | `@swytchcode/runtime/providers/crewai` | array of duck-typed tool objects |
 
-The framework SDKs are optional peer dependencies — install only the one you use
-(`@openai/agents`, `ai`, `@langchain/core`, …). See `sdk-examples/` for end-to-end usage.
+**Note**: The runtime requires Node.js >= 22. The framework SDKs are optional peer dependencies - install only the one you use
+(`@openai/agents`, `ai`, `@langchain/core`, ...). See `sdk-examples/` for end-to-end usage.

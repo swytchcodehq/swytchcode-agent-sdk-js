@@ -24,6 +24,58 @@ function stripEmpty(v: any): any {
   return v;
 }
 
+/**
+ * Case-insensitive match of a toolkit name against an integration string.
+ * integration has shape "ProjectDisplayName.library_slug@version"
+ * (e.g. "GitHub.github@1.1.4"). Compares against both project name and
+ * library slug so toolkits: ["github"] matches regardless of casing.
+ */
+function toolkitMatches(toolkit: string, integration: string): boolean {
+  const tkl = toolkit.toLowerCase();
+  const atIdx = integration.indexOf("@");
+  const prefix = atIdx !== -1 ? integration.slice(0, atIdx) : integration;
+  const dotIdx = prefix.indexOf(".");
+  const project = prefix.slice(0, dotIdx !== -1 ? dotIdx : prefix.length).toLowerCase();
+  const lib = dotIdx !== -1 ? prefix.slice(dotIdx + 1).toLowerCase() : "";
+  return tkl === project || tkl === lib || tkl === prefix.toLowerCase();
+}
+
+/**
+ * Route flat args into body/params based on LOCATION metadata from wrekenfile.
+ */
+function splitByLocation(inputs: any, flatArgs: Record<string, any>): Record<string, any> {
+  const body: Record<string, any> = {};
+  const params: Record<string, any> = {};
+  const locations: Record<string, string> = {};
+
+  if (Array.isArray(inputs)) {
+    for (const item of inputs) {
+      if (item && typeof item === "object") {
+        for (const [name, spec] of Object.entries(item)) {
+          if (spec && typeof spec === "object") {
+            const loc = ((spec as any).LOCATION || (spec as any).location || "body").toLowerCase();
+            locations[name] = loc;
+          }
+        }
+      }
+    }
+  }
+
+  for (const [key, val] of Object.entries(flatArgs)) {
+    const loc = locations[key] || "body";
+    if (loc === "path" || loc === "query") {
+      params[key] = val;
+    } else {
+      body[key] = val;
+    }
+  }
+
+  const result: Record<string, any> = {};
+  if (Object.keys(body).length > 0) result.body = body;
+  if (Object.keys(params).length > 0) result.params = params;
+  return Object.keys(result).length > 0 ? result : { body: flatArgs };
+}
+
 class Tools {
   // Maps a sanitized tool name (dots -> underscores) back to its canonical ID,
   // populated as tools are built. Used to reverse names in handleToolCalls
@@ -31,33 +83,41 @@ class Tools {
   private _nameToId = new Map<string, string>();
   constructor(private c: Swytchcode) {}
 
-  get(o: { toolkits?: string[]; tools?: string[]; search?: string } = {}) {
+  async get(o: { toolkits?: string[]; tools?: string[]; search?: string } = {}) {
     const neutral = this._ids(o).map((cid) => this._tool(cid));
-    return this.c.provider ? this.c.provider.formatTools(neutral) : neutral;
+    return this.c.provider ? await this.c.provider.formatTools(neutral) : neutral;
   }
 
-  execute(cid: string, args: Record<string,any> = {}, options: ExecOptions = {}): Promise<any> {
-    args = args ?? {};
-    if (!("body" in args) && !("params" in args)) args = { body: args };
+  execute(canonical_id: string, args: Record<string, any> = {}, options: ExecOptions & { _rawInputs?: any } = {}): Promise<any> {
+    let finalArgs = { ...args };
+    if (!("body" in finalArgs) && !("params" in finalArgs)) {
+      if (options._rawInputs) {
+        finalArgs = splitByLocation(options._rawInputs, finalArgs);
+      } else {
+        finalArgs = { body: finalArgs };
+      }
+    }
+    
     // Drop empty optional fields (null/undefined/"") from body & params so values
     // an agent over-filled don't reach the API (e.g. Stripe rejects customer="").
-    const a: Record<string,any> = { ...args };
-    if (a.body && typeof a.body === "object") a.body = stripEmpty(a.body);
-    if (a.params && typeof a.params === "object") a.params = stripEmpty(a.params);
+    if (finalArgs.body && typeof finalArgs.body === "object") finalArgs.body = stripEmpty(finalArgs.body);
+    if (finalArgs.params && typeof finalArgs.params === "object") finalArgs.params = stripEmpty(finalArgs.params);
+    
     // Forward exec options (dryRun, raw, allowRaw, cwd, env) to the CLI.
-    return exec(cid, a, options);
+    return exec(canonical_id, finalArgs, options);
   }
 
   private _tool(cid: string): Tool {
     const m = discover.info(cid);
     const name = cid.replace(/\./g,"_");
     this._nameToId.set(name, cid);
+    const rawInputs = m.inputs;
     return {
       canonicalId: cid,
       name,
       description: m.summary || m.description || cid,
       inputSchema: simplify(m.inputs),
-      execute: (a) => this.execute(cid, a)
+      execute: (a) => this.execute(cid, a, { _rawInputs: rawInputs })
     };
   }
 
@@ -76,10 +136,7 @@ class Tools {
         const integration = m.integration || "";
         const cid = m.canonical_id;
         if (!cid) continue;
-        // integration is "project.library@version"; match the project segment
-        // exactly, not a loose substring (so "hub" != "github"). Set dedups so
-        // a method matched by >1 requested toolkit is added only once.
-        if (o.toolkits.some((tk) => integration === tk || integration.startsWith(`${tk}.`))) {
+        if (o.toolkits.some((tk) => toolkitMatches(tk, integration))) {
           found.add(cid);
         }
       }

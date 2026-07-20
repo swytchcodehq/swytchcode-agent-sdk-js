@@ -7,8 +7,8 @@ export interface Tool {
 }
 
 export abstract class Provider {
-  abstract formatTool(t: Tool): any;
-  formatTools(tools: Tool[]): any {
-    return tools.map((t) => this.formatTool(t));
+  abstract formatTool(t: Tool): any | Promise<any>;
+  async formatTools(tools: Tool[]): Promise<any[]> {
+    return Promise.all(tools.map((t) => this.formatTool(t)));
   }
 }

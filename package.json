@@ -10,13 +10,38 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./providers/anthropic": {
+      "types": "./dist/providers/anthropic.d.ts",
+      "import": "./dist/providers/anthropic.js",
+      "default": "./dist/providers/anthropic.js"
+    },
+    "./providers/openai-agents": {
+      "types": "./dist/providers/openai-agents.d.ts",
+      "import": "./dist/providers/openai-agents.js",
+      "default": "./dist/providers/openai-agents.js"
+    },
+    "./providers/vercel": {
+      "types": "./dist/providers/vercel.d.ts",
+      "import": "./dist/providers/vercel.js",
+      "default": "./dist/providers/vercel.js"
+    },
+    "./providers/langgraph": {
+      "types": "./dist/providers/langgraph.d.ts",
+      "import": "./dist/providers/langgraph.js",
+      "default": "./dist/providers/langgraph.js"
+    },
+    "./providers/crewai": {
+      "types": "./dist/providers/crewai.d.ts",
+      "import": "./dist/providers/crewai.js",
+      "default": "./dist/providers/crewai.js"
     }
   },
   "files": [
     "dist"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "peerDependencies": {
     "zod": "^4.4.3",

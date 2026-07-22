@@ -125,6 +125,26 @@ test('Deterministic alias generation and round-tripping for >64 char IDs', async
         // 4. Assert round-tripping
         const cidResolved = client.tools.nameToId(alias);
         assert.strictEqual(cidResolved, longId);
+        
+        // 5. Test collision natively via discover mock
+        const origInfo2 = discover.info;
+        const origSearch2 = discover.search;
+        try {
+            discover.info = (cid) => ({ inputs: { "a": { "TYPE": "STRING" } }, summary: "Test tool" });
+            discover.search = () => [{ canonical_id: "a.b" }, { canonical_id: "a_b" }];
+            const client3 = new Swytchcode();
+            const tools3 = await client3.tools.get({ search: "test" });
+            const alias1 = tools3.find(t => t.canonicalId === "a.b").name;
+            const alias2 = tools3.find(t => t.canonicalId === "a_b").name;
+            
+            assert.notStrictEqual(alias1, alias2);
+            // One of them must have received the hash (length 10: a_b_xxxxxx)
+            const hashedAlias = alias1.length > 3 ? alias1 : alias2;
+            assert.match(hashedAlias, /_[0-9a-f]{6}$/);
+        } finally {
+            discover.info = origInfo2;
+            discover.search = origSearch2;
+        }
     } finally {
         discover.info = origInfo;
         discover.search = origSearch;

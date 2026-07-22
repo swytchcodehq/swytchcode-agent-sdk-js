@@ -86,3 +86,47 @@ test('CrewAIProvider produces correct duck-typed shape', async () => {
     const res = await formatted.func({ a: "test" });
     assert.strictEqual(res, '{"a":"test"}');
 });
+
+test('Deterministic alias generation and round-tripping for >64 char IDs', async () => {
+    const { Swytchcode } = require('../dist/client.js');
+    const discover = require('../dist/discover.js');
+    
+    // Mock discover to return a huge canonical ID
+    const origInfo = discover.info;
+    const origSearch = discover.search;
+    
+    const longId = "google_workspace_admin_directory_users_aliases_insert_extra_padding_to_exceed_limit";
+    discover.info = (cid) => {
+        if (cid === longId) {
+            return { inputs: { "email": { "TYPE": "STRING" } }, summary: "Test tool" };
+        }
+        return origInfo(cid);
+    };
+    discover.search = () => [{ canonical_id: longId }];
+    
+    try {
+        const client = new Swytchcode();
+        
+        // 1. Fetch tools
+        const tools = await client.tools.get({ search: "test" });
+        assert.strictEqual(tools.length, 1);
+        
+        const alias = tools[0].name;
+        
+        // 2. Assert length is <= 64 and matches regex
+        assert.ok(alias.length <= 64, `Alias length ${alias.length} should be <= 64`);
+        assert.match(alias, /^[a-zA-Z0-9_-]{1,64}$/);
+        
+        // 3. Assert determinism (calling it again yields exact same alias)
+        const client2 = new Swytchcode();
+        const tools2 = await client2.tools.get({ search: "test" });
+        assert.strictEqual(tools2[0].name, alias);
+        
+        // 4. Assert round-tripping
+        const cidResolved = client.tools.nameToId(alias);
+        assert.strictEqual(cidResolved, longId);
+    } finally {
+        discover.info = origInfo;
+        discover.search = origSearch;
+    }
+});

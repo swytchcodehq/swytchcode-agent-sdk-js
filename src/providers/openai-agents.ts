@@ -8,7 +8,7 @@ export class OpenAIAgentsProvider extends Provider {
     // 400s server-side on a partial-required schema. Disabling strict mirrors the
     // Python provider's strict_json_schema=False.
     return tool({
-      name: t.name.slice(0, 64),
+      name: t.name,
       description: t.description,
       parameters: t.inputSchema as any,
       strict: false,

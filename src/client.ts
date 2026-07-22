@@ -4,6 +4,20 @@ import * as manage from "./manage.js";
 import { simplify } from "./schema.js";
 import { Provider, Tool } from "./providers/base.js";
 import type { ExecOptions } from "./types.js";
+import * as crypto from "node:crypto";
+
+const MAX_TOOL_NAME_LEN = 64; // OpenAI and Anthropic strict limit
+
+function makeAlias(cid: string, taken: Map<string, string>): string {
+  const base = cid.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const existing = taken.get(base);
+  const needsHash = base.length > MAX_TOOL_NAME_LEN || (existing && existing !== cid);
+  if (!needsHash) return base;
+  
+  const h = crypto.createHash('sha1').update(cid).digest('hex').slice(0, 6);
+  const keep = MAX_TOOL_NAME_LEN - 1 - h.length;
+  return base.slice(0, keep) + "_" + h;
+}
 
 /**
  * Recursively drop keys whose value is null/undefined or an empty string ("").
@@ -94,7 +108,11 @@ class Tools {
   constructor(private c: Swytchcode) {}
 
   async get(o: { toolkits?: string[]; tools?: string[]; search?: string } = {}) {
-    const neutral = this._ids(o).map((cid) => this._tool(cid));
+    // Sort canonical IDs lexicographically before alias assignment.
+    // This ensures deterministic assignment order across runs, guaranteeing the
+    // same canonical ID always receives the exact same alias (and same hash if colliding).
+    const ids = this._ids(o).sort();
+    const neutral = ids.map((cid) => this._tool(cid));
     return this.c.provider ? await this.c.provider.formatTools(neutral) : neutral;
   }
 
@@ -128,15 +146,7 @@ class Tools {
       throw new Error(`Tool discovery failed for ${cid}: Invalid or missing Wrekenfile schema`);
     }
 
-    let name = cid.replace(/[^a-zA-Z0-9_-]/g,"_");
-    
-    // Handle name collision (e.g. github.user vs github_user)
-    let suffix = 0;
-    const baseName = name;
-    while (this._nameToId.has(name) && this._nameToId.get(name) !== cid) {
-      suffix++;
-      name = `${baseName}_${suffix}`;
-    }
+    const name = makeAlias(cid, this._nameToId);
     
     this._nameToId.set(name, cid);
     const rawInputs = m.inputs;

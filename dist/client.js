@@ -122,6 +122,7 @@ class Tools {
     // populated as tools are built. Used to reverse names in handleToolCalls
     // without a lossy "_"->"." replace.
     _nameToId = new Map();
+    _idToInputs = new Map();
     constructor(c) {
         this.c = c;
     }
@@ -155,17 +156,21 @@ class Tools {
         const name = cid.replace(/\./g, "_");
         this._nameToId.set(name, cid);
         const rawInputs = m.inputs;
+        this._idToInputs.set(cid, rawInputs);
         return {
             canonicalId: cid,
             name,
             description: m.summary || m.description || cid,
-            inputSchema: (0, schema_js_1.simplify)(m.inputs),
+            inputSchema: (0, schema_js_1.simplify)(rawInputs),
             execute: (a) => this.execute(cid, a, { _rawInputs: rawInputs })
         };
     }
     /** Reverse a sanitized tool name to its canonical ID (populated by get()). */
     nameToId(name) {
         return this._nameToId.get(name) ?? name.replace(/_/g, ".");
+    }
+    getInputs(cid) {
+        return this._idToInputs.get(cid);
     }
     _ids(o) {
         if (o.tools)
@@ -205,11 +210,11 @@ class Swytchcode {
         for (const block of (response?.content ?? [])) {
             if (block?.type === "tool_use") {
                 const cid = this.tools.nameToId(block.name);
-                const m = discover.info(cid);
+                const rawInputs = this.tools.getInputs(cid) || {};
                 // Isolate failures per block: Anthropic expects a tool_result for every
                 // tool_use in the turn, so one failing tool must not drop the others.
                 try {
-                    const result = await this.tools.execute(cid, block.input ?? {}, { _rawInputs: m.inputs });
+                    const result = await this.tools.execute(cid, block.input ?? {}, { _rawInputs: rawInputs });
                     results.push({
                         type: "tool_result",
                         tool_use_id: block.id,

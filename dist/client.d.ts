@@ -3,6 +3,7 @@ import type { ExecOptions } from "./types.js";
 declare class Tools {
     private c;
     private _nameToId;
+    private _idToInputs;
     constructor(c: Swytchcode);
     get(o?: {
         toolkits?: string[];
@@ -15,6 +16,7 @@ declare class Tools {
     private _tool;
     /** Reverse a sanitized tool name to its canonical ID (populated by get()). */
     nameToId(name: string): string;
+    getInputs(cid: string): any;
     private _ids;
 }
 export declare class Swytchcode {

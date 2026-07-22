@@ -55,3 +55,13 @@ test('VercelProvider uses inputSchema instead of parameters', async () => {
     const formatted = await provider.formatTool(toolDef);
     assert.ok(formatted.inputSchema !== undefined, 'Vercel tool must have inputSchema — model sees zero inputs');
 });
+
+test('Schema correctly marks array Wreken path parameters as required', () => {
+    const rawSchema = [
+        { "owner": { "TYPE": "STRING", "LOCATION": "path" } },
+        { "title": { "TYPE": "STRING", "LOCATION": "body" } }
+    ];
+    const simplified = simplify(rawSchema);
+    assert.ok(simplified.required.includes("owner"));
+    assert.ok(!simplified.required.includes("title"));
+});

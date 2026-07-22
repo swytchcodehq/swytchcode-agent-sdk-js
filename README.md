@@ -73,7 +73,7 @@ Equivalent to: `swytchcode exec api.report.export --raw` with input on stdin.
 - **`allowRaw`** – If `true`, pass `--allow-raw` to the CLI; required for executing raw methods (kernel has this disabled by default).
 - **`debug`** – If `true`, log spawn args, cwd, exit status, and stdout/stderr lengths to stderr.
 
-This runtime invokes `swytchcode exec [canonical_id]` with the flags above. For full exec behavior (exit codes, output format, pipeline), see the [Swytchcode kernel documentation](https://gitlab.com/swytchcode/@swytchcode/runtime).
+This runtime invokes `swytchcode exec [canonical_id]` with the flags above. For full exec behavior (exit codes, output format, pipeline), see the [Swytchcode kernel documentation](https://github.com/swytchcodehq/runtime-js).
 
 ### Environment variables
 

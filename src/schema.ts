@@ -23,7 +23,8 @@ export function simplify(inputs: any): JS {
         properties[name] = { type: t, ...(spec.DESC ? { description: spec.DESC } : {}) };
 
         const req = spec.REQUIRED;
-        const isRequired = req === true || (typeof req === "string" && req.trim().toLowerCase() === "true");
+        const loc = String(spec.LOCATION || spec.location || "").toLowerCase();
+        const isRequired = loc === "path" || req === true || (typeof req === "string" && req.trim().toLowerCase() === "true");
         if (isRequired) required.push(name);
       }
     }

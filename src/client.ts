@@ -40,41 +40,7 @@ function toolkitMatches(toolkit: string, integration: string): boolean {
   return tkl === project || tkl === lib || tkl === prefix.toLowerCase();
 }
 
-/**
- * Route flat args into body/params based on LOCATION metadata from wrekenfile.
- */
-function splitByLocation(inputs: any, flatArgs: Record<string, any>): Record<string, any> {
-  const body: Record<string, any> = {};
-  const params: Record<string, any> = {};
-  const locations: Record<string, string> = {};
 
-  if (Array.isArray(inputs)) {
-    for (const item of inputs) {
-      if (item && typeof item === "object") {
-        for (const [name, spec] of Object.entries(item)) {
-          if (spec && typeof spec === "object") {
-            const loc = ((spec as any).LOCATION || (spec as any).location || "body").toLowerCase();
-            locations[name] = loc;
-          }
-        }
-      }
-    }
-  }
-
-  for (const [key, val] of Object.entries(flatArgs)) {
-    const loc = locations[key] || "body";
-    if (loc === "path" || loc === "query") {
-      params[key] = val;
-    } else {
-      body[key] = val;
-    }
-  }
-
-  const result: Record<string, any> = {};
-  if (Object.keys(body).length > 0) result.body = body;
-  if (Object.keys(params).length > 0) result.params = params;
-  return Object.keys(result).length > 0 ? result : { body: flatArgs };
-}
 
 class Tools {
   // Maps a sanitized tool name (dots -> underscores) back to its canonical ID,
@@ -90,18 +56,10 @@ class Tools {
 
   execute(canonical_id: string, args: Record<string, any> = {}, options: ExecOptions & { _rawInputs?: any } = {}): Promise<any> {
     let finalArgs = { ...args };
-    if (!("body" in finalArgs) && !("params" in finalArgs)) {
-      if (options._rawInputs) {
-        finalArgs = splitByLocation(options._rawInputs, finalArgs);
-      } else {
-        finalArgs = { body: finalArgs };
-      }
-    }
     
-    // Drop empty optional fields (null/undefined/"") from body & params so values
+    // Drop empty optional fields (null/undefined/"") so values
     // an agent over-filled don't reach the API (e.g. Stripe rejects customer="").
-    if (finalArgs.body && typeof finalArgs.body === "object") finalArgs.body = stripEmpty(finalArgs.body);
-    if (finalArgs.params && typeof finalArgs.params === "object") finalArgs.params = stripEmpty(finalArgs.params);
+    finalArgs = stripEmpty(finalArgs);
     
     // Forward exec options (dryRun, raw, allowRaw, cwd, env) to the CLI.
     return exec(canonical_id, finalArgs, options);

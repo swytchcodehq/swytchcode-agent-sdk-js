@@ -49,6 +49,13 @@ export function simplify(inputs: any): JS {
   // optional instead of being dropped or forced required.
   for (const name of Object.keys(properties)) {
     let spec = properties[name] || {};
+    
+    // JSON-Schema tools might have LOCATION metadata. Mark path params as required.
+    const loc = String(spec.LOCATION || spec.location || "").toLowerCase();
+    if (loc === "path" && !required.includes(name)) {
+      required.push(name);
+    }
+
     if (typeof spec === "object" && spec !== null && spec.type === "object" && spec.properties) {
         spec = simplify(spec);
     }

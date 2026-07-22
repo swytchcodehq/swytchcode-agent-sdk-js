@@ -61,6 +61,13 @@ function splitByLocation(inputs: any, flatArgs: Record<string, any>): Record<str
         }
       }
     }
+  } else if (inputs && typeof inputs === "object" && inputs.properties && typeof inputs.properties === "object") {
+    for (const [name, spec] of Object.entries(inputs.properties)) {
+      if (spec && typeof spec === "object") {
+        const loc = ((spec as any).LOCATION || (spec as any).location || "body").toLowerCase();
+        locations[name] = loc;
+      }
+    }
   }
 
   for (const [k, v] of Object.entries(flatArgs)) {
@@ -170,10 +177,11 @@ export class Swytchcode {
     for (const block of (response?.content ?? [])) {
       if (block?.type === "tool_use") {
         const cid = this.tools.nameToId(block.name);
+        const m = discover.info(cid);
         // Isolate failures per block: Anthropic expects a tool_result for every
         // tool_use in the turn, so one failing tool must not drop the others.
         try {
-          const result = await this.tools.execute(cid, block.input ?? {});
+          const result = await this.tools.execute(cid, block.input ?? {}, { _rawInputs: m.inputs });
           results.push({
             type: "tool_result",
             tool_use_id: block.id,

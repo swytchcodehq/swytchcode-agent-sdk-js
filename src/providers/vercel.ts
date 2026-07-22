@@ -4,7 +4,7 @@ export class VercelProvider extends Provider {
     const { tool, jsonSchema } = await import("ai");
     return tool({ 
       description: t.description, 
-      inputSchema: jsonSchema(t.inputSchema as any),
+      parameters: jsonSchema(t.inputSchema as any),
       execute: (async (a: any) => t.execute(a)) as any
     } as any);
   }

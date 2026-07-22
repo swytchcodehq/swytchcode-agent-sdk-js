@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.search = exports.policies = exports.keys = exports.listTools = exports.add = void 0;
+const cli_js_1 = require("./cli.js");
+const add = (libOrUrl) => (0, cli_js_1.runCli)(["add", libOrUrl]) ?? {};
+exports.add = add;
+const listTools = (filter = "") => (0, cli_js_1.runCli)(filter ? ["list", filter] : ["list"]) ?? {};
+exports.listTools = listTools;
+const keys = () => (0, cli_js_1.runCli)(["key", "list"]) ?? [];
+exports.keys = keys;
+const policies = () => (0, cli_js_1.runCli)(["policy", "list"]) ?? [];
+exports.policies = policies;
+const search = (keyword = "") => (0, cli_js_1.runCli)(keyword ? ["search", keyword] : ["search"]) ?? {};
+exports.search = search;

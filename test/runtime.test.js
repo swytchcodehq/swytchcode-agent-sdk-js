@@ -65,3 +65,24 @@ test('Schema correctly marks array Wreken path parameters as required', () => {
     assert.ok(simplified.required.includes("owner"));
     assert.ok(!simplified.required.includes("title"));
 });
+
+test('CrewAIProvider produces correct duck-typed shape', async () => {
+    const { CrewAIProvider } = require('../dist/providers/crewai.js');
+    const provider = new CrewAIProvider();
+    const toolDef = {
+        canonicalId: "test.tool",
+        name: "test_tool",
+        description: "A crewai test tool",
+        inputSchema: { type: "object", properties: { a: { type: "string" } }, required: ["a"] },
+        execute: async (args) => { return args; }
+    };
+    const formatted = provider.formatTool(toolDef);
+    assert.strictEqual(formatted.name, "test_tool");
+    assert.strictEqual(formatted.description, "A crewai test tool");
+    assert.deepStrictEqual(formatted.schema, toolDef.inputSchema);
+    assert.strictEqual(typeof formatted.func, "function");
+    
+    // Ensure func returns stringified JSON as expected
+    const res = await formatted.func({ a: "test" });
+    assert.strictEqual(res, '{"a":"test"}');
+});

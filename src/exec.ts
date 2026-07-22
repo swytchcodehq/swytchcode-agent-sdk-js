@@ -236,15 +236,10 @@ export function exec(
     return Promise.resolve(result.stdout ?? "");
   }
 
-  // JSON mode: stdout only; no stderr fallback. Empty or invalid → throw.
+  // JSON mode: stdout only; no stderr fallback. Empty -> return null (parity with Python).
   if (stdout.length === 0) {
-    log(debug, "reject:", "empty stdout in JSON mode");
-    return Promise.reject(
-      new SwytchcodeError(
-        "Empty stdout in JSON mode; swytchcode must write JSON to stdout",
-        undefined
-      )
-    );
+    log(debug, "resolve:", "empty stdout in JSON mode returning null");
+    return Promise.resolve(null as unknown as ExecResult);
   }
 
   try {

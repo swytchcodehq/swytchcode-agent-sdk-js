@@ -22,7 +22,7 @@ function simplify(inputs) {
                     t = "object";
                 else if (t.startsWith("[]"))
                     t = "array";
-                else if (t === "float" || t === "number")
+                else if (t === "float" || t === "number" || t === "double")
                     t = "number";
                 else
                     t = "string";

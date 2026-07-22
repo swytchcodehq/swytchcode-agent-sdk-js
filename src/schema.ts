@@ -17,7 +17,7 @@ export function simplify(inputs: any): JS {
         else if (t === "bool") t = "boolean";
         else if (t === "object" || t === "any") t = "object";
         else if (t.startsWith("[]")) t = "array";
-        else if (t === "float" || t === "number") t = "number";
+        else if (t === "float" || t === "number" || t === "double") t = "number";
         else t = "string";
 
         properties[name] = { type: t, ...(spec.DESC ? { description: spec.DESC } : {}) };

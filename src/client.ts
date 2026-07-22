@@ -124,7 +124,20 @@ class Tools {
 
   private _tool(cid: string): Tool {
     const m = discover.info(cid);
-    const name = cid.replace(/\./g,"_");
+    if (!m || !m.inputs) {
+      throw new Error(`Tool discovery failed for ${cid}: Invalid or missing Wrekenfile schema`);
+    }
+
+    let name = cid.replace(/[^a-zA-Z0-9_-]/g,"_");
+    
+    // Handle name collision (e.g. github.user vs github_user)
+    let suffix = 0;
+    const baseName = name;
+    while (this._nameToId.has(name) && this._nameToId.get(name) !== cid) {
+      suffix++;
+      name = `${baseName}_${suffix}`;
+    }
+    
     this._nameToId.set(name, cid);
     const rawInputs = m.inputs;
     this._idToInputs.set(cid, rawInputs);

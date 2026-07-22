@@ -42,16 +42,16 @@ test('Schema correctly marks JSON-Schema path parameters as required', () => {
     assert.ok(!simplified.required.includes("title"));
 });
 
-test('VercelProvider uses parameters instead of inputSchema', async () => {
+test('VercelProvider uses inputSchema instead of parameters', async () => {
     const { VercelProvider } = require('../dist/providers/vercel.js');
     const provider = new VercelProvider();
     const toolDef = {
-        name: "test_tool",
+        canonicalId: "x.y",
+        name: "x_y",
         description: "A test tool",
-        inputSchema: { type: "object", properties: { a: { type: "string" } } },
+        inputSchema: { type: "object", properties: { a: { type: "string" } }, required: ["a"] },
         execute: async () => {}
     };
     const formatted = await provider.formatTool(toolDef);
-    assert.ok(formatted.parameters !== undefined, 'Vercel tool must have parameters');
-    // internal Vercel AI SDK checks
+    assert.ok(formatted.inputSchema !== undefined, 'Vercel tool must have inputSchema — model sees zero inputs');
 });

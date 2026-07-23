@@ -4,6 +4,20 @@ import * as manage from "./manage.js";
 import { simplify } from "./schema.js";
 import { Provider, Tool } from "./providers/base.js";
 import type { ExecOptions } from "./types.js";
+import * as crypto from "node:crypto";
+
+const MAX_TOOL_NAME_LEN = 64; // OpenAI and Anthropic strict limit
+
+function makeAlias(cid: string, taken: Map<string, string>): string {
+  const base = cid.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const existing = taken.get(base);
+  const needsHash = base.length > MAX_TOOL_NAME_LEN || (existing && existing !== cid);
+  if (!needsHash) return base;
+  
+  const h = crypto.createHash('sha1').update(cid).digest('hex').slice(0, 6);
+  const keep = MAX_TOOL_NAME_LEN - 1 - h.length;
+  return base.slice(0, keep) + "_" + h;
+}
 
 /**
  * Recursively drop keys whose value is null/undefined or an empty string ("").
@@ -40,6 +54,8 @@ function toolkitMatches(toolkit: string, integration: string): boolean {
   return tkl === project || tkl === lib || tkl === prefix.toLowerCase();
 }
 
+
+
 /**
  * Route flat args into body/params based on LOCATION metadata from wrekenfile.
  */
@@ -59,21 +75,28 @@ function splitByLocation(inputs: any, flatArgs: Record<string, any>): Record<str
         }
       }
     }
+  } else if (inputs && typeof inputs === "object" && inputs.properties && typeof inputs.properties === "object") {
+    for (const [name, spec] of Object.entries(inputs.properties)) {
+      if (spec && typeof spec === "object") {
+        const loc = ((spec as any).LOCATION || (spec as any).location || "body").toLowerCase();
+        locations[name] = loc;
+      }
+    }
   }
 
-  for (const [key, val] of Object.entries(flatArgs)) {
-    const loc = locations[key] || "body";
+  for (const [k, v] of Object.entries(flatArgs)) {
+    const loc = locations[k] || "body";
     if (loc === "path" || loc === "query") {
-      params[key] = val;
+      params[k] = v;
     } else {
-      body[key] = val;
+      body[k] = v;
     }
   }
 
   const result: Record<string, any> = {};
   if (Object.keys(body).length > 0) result.body = body;
   if (Object.keys(params).length > 0) result.params = params;
-  return Object.keys(result).length > 0 ? result : { body: flatArgs };
+  return result;
 }
 
 class Tools {
@@ -81,15 +104,21 @@ class Tools {
   // populated as tools are built. Used to reverse names in handleToolCalls
   // without a lossy "_"->"." replace.
   private _nameToId = new Map<string, string>();
+  private _idToInputs = new Map<string, any>();
   constructor(private c: Swytchcode) {}
 
   async get(o: { toolkits?: string[]; tools?: string[]; search?: string } = {}) {
-    const neutral = this._ids(o).map((cid) => this._tool(cid));
+    // Sort canonical IDs lexicographically before alias assignment.
+    // This ensures deterministic assignment order across runs, guaranteeing the
+    // same canonical ID always receives the exact same alias (and same hash if colliding).
+    const ids = this._ids(o).sort();
+    const neutral = ids.map((cid) => this._tool(cid));
     return this.c.provider ? await this.c.provider.formatTools(neutral) : neutral;
   }
 
   execute(canonical_id: string, args: Record<string, any> = {}, options: ExecOptions & { _rawInputs?: any } = {}): Promise<any> {
     let finalArgs = { ...args };
+    
     if (!("body" in finalArgs) && !("params" in finalArgs)) {
       if (options._rawInputs) {
         finalArgs = splitByLocation(options._rawInputs, finalArgs);
@@ -98,10 +127,14 @@ class Tools {
       }
     }
     
-    // Drop empty optional fields (null/undefined/"") from body & params so values
+    // Drop empty optional fields (null/undefined/"") so values
     // an agent over-filled don't reach the API (e.g. Stripe rejects customer="").
-    if (finalArgs.body && typeof finalArgs.body === "object") finalArgs.body = stripEmpty(finalArgs.body);
-    if (finalArgs.params && typeof finalArgs.params === "object") finalArgs.params = stripEmpty(finalArgs.params);
+    if (finalArgs.body && typeof finalArgs.body === "object") {
+      finalArgs.body = stripEmpty(finalArgs.body);
+    }
+    if (finalArgs.params && typeof finalArgs.params === "object") {
+      finalArgs.params = stripEmpty(finalArgs.params);
+    }
     
     // Forward exec options (dryRun, raw, allowRaw, cwd, env) to the CLI.
     return exec(canonical_id, finalArgs, options);
@@ -109,14 +142,20 @@ class Tools {
 
   private _tool(cid: string): Tool {
     const m = discover.info(cid);
-    const name = cid.replace(/\./g,"_");
+    if (!m || !m.inputs) {
+      throw new Error(`Tool discovery failed for ${cid}: Invalid or missing Wrekenfile schema`);
+    }
+
+    const name = makeAlias(cid, this._nameToId);
+    
     this._nameToId.set(name, cid);
     const rawInputs = m.inputs;
+    this._idToInputs.set(cid, rawInputs);
     return {
       canonicalId: cid,
       name,
       description: m.summary || m.description || cid,
-      inputSchema: simplify(m.inputs),
+      inputSchema: simplify(rawInputs),
       execute: (a) => this.execute(cid, a, { _rawInputs: rawInputs })
     };
   }
@@ -124,6 +163,10 @@ class Tools {
   /** Reverse a sanitized tool name to its canonical ID (populated by get()). */
   nameToId(name: string): string {
     return this._nameToId.get(name) ?? name.replace(/_/g, ".");
+  }
+  
+  getInputs(cid: string): any {
+    return this._idToInputs.get(cid);
   }
 
   private _ids(o: { toolkits?: string[]; tools?: string[]; search?: string }): string[] {
@@ -163,10 +206,11 @@ export class Swytchcode {
     for (const block of (response?.content ?? [])) {
       if (block?.type === "tool_use") {
         const cid = this.tools.nameToId(block.name);
+        const rawInputs = this.tools.getInputs(cid) || {};
         // Isolate failures per block: Anthropic expects a tool_result for every
         // tool_use in the turn, so one failing tool must not drop the others.
         try {
-          const result = await this.tools.execute(cid, block.input ?? {});
+          const result = await this.tools.execute(cid, block.input ?? {}, { _rawInputs: rawInputs });
           results.push({
             type: "tool_result",
             tool_use_id: block.id,

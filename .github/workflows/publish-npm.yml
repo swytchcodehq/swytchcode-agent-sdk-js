@@ -15,4 +15,4 @@ jobs:
       - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
-      - run: npm publish --provenance --tag beta
+      - run: npm publish --provenance --tag latest

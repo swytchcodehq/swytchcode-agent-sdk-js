@@ -81,6 +81,9 @@
     "url": "https://github.com/swytchcodehq/runtime-js"
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "swytchcode",
     "cli",
